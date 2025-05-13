@@ -1,293 +1,108 @@
-<!doctype html>
-<html>
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+var createScene = function () {
+    var scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color3(0, 0, 0);
 
-        <title>Babylon.js sample code</title>
+    // Matahari (core sphere)
+    var coreSphere = BABYLON.MeshBuilder.CreateSphere("coreSphere", {diameter: 2.01, segments: 64}, scene);
+    coreSphere.position = new BABYLON.Vector3(0, 5, -10);
+    var coreMat = new BABYLON.StandardMaterial("coreMat", scene);
+    coreMat.emissiveColor = new BABYLON.Color3(1, 0.6, 0.1);
+    coreSphere.material = coreMat;
 
-        <!-- Babylon.js -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.2/dat.gui.min.js"></script>
-        <script src="https://assets.babylonjs.com/generated/Assets.js"></script>
-        <script src="https://cdn.babylonjs.com/recast.js"></script>
-        <script src="https://cdn.babylonjs.com/ammo.js"></script>
-        <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-        <script src="https://cdn.babylonjs.com/cannon.js"></script>
-        <script src="https://cdn.babylonjs.com/Oimo.js"></script>
-        <script src="https://cdn.babylonjs.com/earcut.min.js"></script>
-        <script src="https://cdn.babylonjs.com/babylon.js"></script>
-        <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
-        <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
-        <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
-        <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.js"></script>
-        <script src="https://cdn.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
-        <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
-        <script src="https://cdn.babylonjs.com/addons/babylonjs.addons.min.js"></script>
-        <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+    // Ground
+    var ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 40, height: 40}, scene);
+    ground.position.y = -2;
+    var groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+    groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+    ground.material = groundMat;
+    ground.receiveShadows = true;
 
-        <style>
-            html,
-            body {
-                overflow: hidden;
-                width: 100%;
-                height: 100%;
-                margin: 0;
-                padding: 0;
+    // Objek
+    var sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter: 1}, scene);
+    sphere.position.y = -1.5;
+    sphere.position.x = -2;
+
+    var box = BABYLON.MeshBuilder.CreateBox("box", {size: 1.2}, scene);
+    box.position.y = -1.4;
+    box.position.x = 2;
+
+    var torus = BABYLON.MeshBuilder.CreateTorus("torus", {diameter: 1.5, thickness: 0.3}, scene);
+    torus.position.y = -1.3;
+    torus.position.z = 3;
+
+    // Cahaya dari matahari
+    var light = new BABYLON.DirectionalLight("sunLight", new BABYLON.Vector3(0, -1, 0), scene);
+    light.position = coreSphere.position.clone();
+    var shadowGen = new BABYLON.ShadowGenerator(1024, light);
+    shadowGen.useExponentialShadowMap = true;
+
+    [sphere, box, torus, coreSphere].forEach(mesh => {
+        shadowGen.addShadowCaster(mesh);
+    });
+
+    // Update posisi & arah cahaya
+    scene.registerBeforeRender(function () {
+        let t = Date.now() * 0.001;
+        let radius = 10;
+        coreSphere.position.x = Math.sin(t) * radius;
+        coreSphere.position.z = Math.cos(t) * radius;
+        coreSphere.position.y = 5;
+
+        light.position = coreSphere.position.clone();
+        var target = new BABYLON.Vector3(0, -1, 0);
+        light.direction = target.subtract(coreSphere.position).normalize();
+    });
+
+    // Interaksi: klik objek = animasi
+    scene.onPointerObservable.add((pointerInfo) => {
+        if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERPICK) {
+            let pickedMesh = pointerInfo.pickInfo.pickedMesh;
+
+            if (pickedMesh === sphere) {
+                let anim = new BABYLON.Animation("bounce", "position.y", 30,
+                    BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+                    BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE);
+                let keys = [
+                    { frame: 0, value: sphere.position.y },
+                    { frame: 10, value: sphere.position.y + 2 },
+                    { frame: 20, value: sphere.position.y }
+                ];
+                anim.setKeys(keys);
+                sphere.animations = [anim];
+                scene.beginAnimation(sphere, 0, 20, false);
             }
 
-            #renderCanvas {
-                width: 100%;
-                height: 100%;
-                touch-action: none;
+            if (pickedMesh === box) {
+                let anim = new BABYLON.Animation("rotateBox", "rotation.y", 30,
+                    BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+                    BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE);
+                let keys = [
+                    { frame: 0, value: box.rotation.y },
+                    { frame: 30, value: box.rotation.y + Math.PI * 2 }
+                ];
+                anim.setKeys(keys);
+                box.animations = [anim];
+                scene.beginAnimation(box, 0, 30, false);
             }
 
-            #canvasZone {
-                width: 100%;
-                height: 100%;
+            if (pickedMesh === torus) {
+                let anim = new BABYLON.Animation("slideTorus", "position.x", 30,
+                    BABYLON.Animation.ANIMATIONTYPE_FLOAT,
+                    BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE);
+                let keys = [
+                    { frame: 0, value: torus.position.x },
+                    { frame: 15, value: torus.position.x + 2 },
+                    { frame: 30, value: torus.position.x }
+                ];
+                anim.setKeys(keys);
+                torus.animations = [anim];
+                scene.beginAnimation(torus, 0, 30, false);
             }
-        </style>
-    </head>
-    <body>
-        <div id="canvasZone"><canvas id="renderCanvas"></canvas></div>
-        <script>
-                    var canvas = document.getElementById("renderCanvas");
-
-                    var startRenderLoop = function (engine, canvas) {
-                        engine.runRenderLoop(function () {
-                            if (sceneToRender && sceneToRender.activeCamera) {
-                                sceneToRender.render();
-                            }
-                        });
-                    }
-
-                    var engine = null;
-        var scene = null;
-        var sceneToRender = null;
-        var createDefaultEngine = function() { return new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true,  disableWebGL2Support: false}); };
-        var createScene = function () {
-            var scene = new BABYLON.Scene(engine);
-            scene.clearColor = new BABYLON.Color3(0.0, 0.0, 0.0);
-        
-            // Emitter object
-            var stars = BABYLON.Mesh.CreateBox("emitter", 0.01, scene);
-        
-            // Create a particle system
-            var surfaceParticles = new BABYLON.ParticleSystem("surfaceParticles", 1600, scene);
-            var flareParticles = new BABYLON.ParticleSystem("flareParticles", 20, scene);
-            var coronaParticles = new BABYLON.ParticleSystem("coronaParticles", 600, scene);
-            var starsParticles = new BABYLON.ParticleSystem("starsParticles", 500, scene);
-        
-            // Texture of each particle
-            surfaceParticles.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleSystems/Sun/T_SunSurface.png", scene);
-            flareParticles.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleSystems/Sun/T_SunFlare.png", scene);
-            coronaParticles.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleSystems/Sun/T_Star.png", scene);
-            starsParticles.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/PatrickRyanMS/BabylonJStextures/master/ParticleSystems/Sun/T_Star.png", scene);
-        
-            // Create core sphere
-            var coreSphere = BABYLON.MeshBuilder.CreateSphere("coreSphere", {diameter: 2.01, segments: 64}, scene);
-        
-            // Create core material
-            var coreMat = new BABYLON.StandardMaterial("coreMat", scene)
-            coreMat.emissiveColor = new BABYLON.Color3(0.3773, 0.0930, 0.0266); 
-        
-            // Assign core material to sphere
-            coreSphere.material = coreMat;
-        
-            // Pre-warm
-            surfaceParticles.preWarmStepOffset = 10;
-            surfaceParticles.preWarmCycles = 100;
-        
-            flareParticles.preWarmStepOffset = 10;
-            flareParticles.preWarmCycles = 100;
-        
-            coronaParticles.preWarmStepOffset = 10;
-            coronaParticles.preWarmCycles = 100;
-        
-            // Initial rotation
-            surfaceParticles.minInitialRotation = -2 * Math.PI;
-            surfaceParticles.maxInitialRotation = 2 * Math.PI;
-        
-            flareParticles.minInitialRotation = -2 * Math.PI;
-            flareParticles.maxInitialRotation = 2 * Math.PI;
-        
-            coronaParticles.minInitialRotation = -2 * Math.PI;
-            coronaParticles.maxInitialRotation = 2 * Math.PI;
-            
-            // Where the sun particles come from
-            var sunEmitter = new BABYLON.SphereParticleEmitter();
-            sunEmitter.radius = 1;
-            sunEmitter.radiusRange = 0; // emit only from shape surface
-        
-            // Where the stars particles come from
-            var starsEmitter = new BABYLON.SphereParticleEmitter();
-            starsEmitter.radius = 20;
-            starsEmitter.radiusRange = 0; // emit only from shape surface
-         
-            // Assign particles to emitters
-            surfaceParticles.emitter = coreSphere; // the starting object, the emitter
-            surfaceParticles.particleEmitterType = sunEmitter;
-        
-            flareParticles.emitter = coreSphere; // the starting object, the emitter
-            flareParticles.particleEmitterType = sunEmitter;
-        
-            coronaParticles.emitter = coreSphere; // the starting object, the emitter
-            coronaParticles.particleEmitterType = sunEmitter;
-        
-            starsParticles.emitter = stars; // the starting object, the emitter
-            starsParticles.particleEmitterType = starsEmitter;
-        
-            // Random starting color
-            starsParticles.color1 = new BABYLON.Color4(0.898, 0.737, 0.718, 1.0);
-            starsParticles.color2 = new BABYLON.Color4(0.584, 0.831, 0.894, 1.0);
-        
-            // Color gradient over time
-            surfaceParticles.addColorGradient(0, new BABYLON.Color4(0.8509, 0.4784, 0.1019, 0.0));
-            surfaceParticles.addColorGradient(0.4, new BABYLON.Color4(0.6259, 0.3056, 0.0619, 0.5));
-            surfaceParticles.addColorGradient(0.5, new BABYLON.Color4(0.6039, 0.2887, 0.0579, 0.5));
-            surfaceParticles.addColorGradient(1.0, new BABYLON.Color4(0.3207, 0.0713, 0.0075, 0.0));
-        
-            flareParticles.addColorGradient(0, new BABYLON.Color4(1, 0.9612, 0.5141, 0.0));
-            flareParticles.addColorGradient(0.25, new BABYLON.Color4(0.9058, 0.7152, 0.3825, 1.0));
-            flareParticles.addColorGradient(1.0, new BABYLON.Color4(0.6320, 0.0, 0.0, 0.0));
-        
-            coronaParticles.addColorGradient(0, new BABYLON.Color4(0.8509, 0.4784, 0.1019, 0.0));
-            coronaParticles.addColorGradient(0.5, new BABYLON.Color4(0.6039, 0.2887, 0.0579, 0.12));
-            coronaParticles.addColorGradient(1.0, new BABYLON.Color4(0.3207, 0.0713, 0.0075, 0.0));
-        
-            // Size of each particle (random between...
-            surfaceParticles.minSize = 0.4;
-            surfaceParticles.maxSize = 0.7;
-        
-            flareParticles.minScaleX = 0.5;
-            flareParticles.minScaleY = 0.5;
-            flareParticles.maxScaleX= 1.0;
-            flareParticles.maxScaleY = 1.0;
-        
-            coronaParticles.minScaleX = 0.5;
-            coronaParticles.minScaleY = 0.75;
-            coronaParticles.maxScaleX = 1.2;
-            coronaParticles.maxScaleY = 3.0;
-        
-            starsParticles.minSize = 0.15;
-            starsParticles.maxSize = 0.3;
-        
-            // Size over lifetime
-            flareParticles.addSizeGradient(0, 0);
-            flareParticles.addSizeGradient(1, 1);
-            
-            // Life time of each particle (random between...
-            surfaceParticles.minLifeTime = 8.0;
-            surfaceParticles.maxLifeTime = 8.0;
-        
-            flareParticles.minLifeTime = 10.0;
-            flareParticles.maxLifeTime = 10.0;
-        
-            coronaParticles.minLifeTime = 2.0;
-            coronaParticles.maxLifeTime= 2.0;
-        
-            starsParticles.minLifeTime = 999999;
-            starsParticles.maxLifeTime = 999999;
-        
-            // Emission rate
-            surfaceParticles.emitRate = 200;
-            flareParticles.emitRate = 1;
-            coronaParticles.emitRate = 300;
-        
-            // Burst rate
-            starsParticles.manualEmitCount = 500;
-            starsParticles.maxEmitPower = 0.0;
-        
-            // Blend mode : BLENDMODE_ONEONE, BLENDMODE_STANDARD, or BLENDMODE_ADD
-            surfaceParticles.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
-            flareParticles.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
-            coronaParticles.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
-            starsParticles.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
-        
-            // Set the gravity of all particles
-            surfaceParticles.gravity = new BABYLON.Vector3(0, 0, 0);
-            flareParticles.gravity = new BABYLON.Vector3(0, 0, 0);
-            coronaParticles.gravity = new BABYLON.Vector3(0, 0, 0);
-            starsParticles.gravity = new BABYLON.Vector3(0, 0, 0);
-        
-            // Angular speed, in radians
-            surfaceParticles.minAngularSpeed = -0.4;
-            surfaceParticles.maxAngularSpeed = 0.4;
-        
-            flareParticles.minAngularSpeed = 0.0;
-            flareParticles.maxAngularSpeed = 0.0;
-        
-            coronaParticles.minAngularSpeed = 0.0;
-            coronaParticles.maxAngularSpeed = 0.0;
-        
-            starsParticles.minAngularSpeed = 0.0;
-            starsParticles.maxAngularSpeed = 0.0;
-        
-            // Speed
-            surfaceParticles.minEmitPower = 0;
-            surfaceParticles.maxEmitPower = 0;
-            surfaceParticles.updateSpeed = 0.005;
-        
-            flareParticles.minEmitPower = 0.001;
-            flareParticles.maxEmitPower = 0.01;
-        
-            coronaParticles.minEmitPower = 0.0;
-            coronaParticles.maxEmitPower = 0.0;
-        
-            starsParticles.minEmitPower = 0.0;
-            starsParticles.maxAngularSpeed = 0.0;
-        
-            // No billboard
-            surfaceParticles.isBillboardBased = false;
-            flareParticles.isBillboardBased = true;
-            coronaParticles.isBillboardBased = true;
-            starsParticles.isBillboardBased = true;
-        
-            // Render Order
-            starsParticles.renderingGroupId = 0;
-            coronaParticles.renderingGroupId = 1;
-            flareParticles.renderingGroupId = 2;
-            surfaceParticles.renderingGroupId = 3;
-            coreSphere.renderingGroupId = 3;
-        
-            // Start the particle system
-            surfaceParticles.start();
-            flareParticles.start();
-            coronaParticles.start();
-            starsParticles.start();
-        
-            scene.createDefaultCamera(true, undefined, true);
-            scene.activeCamera.lowerRadiusLimit = 2;
-        
-            return scene;
         }
-                window.initFunction = async function() {
-                    
-                    
-                    
-                    var asyncEngineCreation = async function() {
-                        try {
-                        return createDefaultEngine();
-                        } catch(e) {
-                        console.log("the available createEngine function failed. Creating the default engine instead");
-                        return createDefaultEngine();
-                        }
-                    }
+    });
 
-                    window.engine = await asyncEngineCreation();
-                    
-                    const engineOptions = window.engine.getCreationOptions?.();
-                    if (!engineOptions || engineOptions.audioEngine !== false) {
-                        
-                    }
-        if (!engine) throw 'engine should not be null.';
-        startRenderLoop(engine, canvas);
-        window.scene = createScene();};
-        initFunction().then(() => {sceneToRender = scene
-                    });
+    scene.createDefaultCamera(true, undefined, true);
+    scene.activeCamera.lowerRadiusLimit = 2;
 
-                    // Resize
-                    window.addEventListener("resize", function () {
-                        engine.resize();
-                    });
-        </script>
-    </body>
-</html>
+    return scene;
+};
